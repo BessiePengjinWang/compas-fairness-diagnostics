@@ -2,7 +2,12 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 
 from compas_fairness.config import RANDOM_STATE, TARGET
-from compas_fairness.information import marginal_accuracy_coef, marginal_discrimination_coef
+from compas_fairness.information import (
+    accuracy_coefficient,
+    discrimination_coefficient,
+    shapley_values,
+    values_for_all_subsets,
+)
 from compas_fairness.metrics import calibration_gap
 from compas_fairness.preprocessing import (
     add_length_of_stay,
@@ -13,6 +18,8 @@ from compas_fairness.preprocessing import (
 
 CORE_FEATURES = ["c_charge_degree", "age_cat", "sex", "race", "length_of_stay"]
 EXTENDED_FEATURES = ["priors_count"] + CORE_FEATURES
+PROTECTED_ATTRIBUTE = "race"
+NON_PROTECTED_FEATURES = [name for name in EXTENDED_FEATURES if name != PROTECTED_ATTRIBUTE]
 CANDIDATE_DROPS = [
     ["length_of_stay", "sex"],
     ["length_of_stay", "priors_count"],
@@ -57,19 +64,17 @@ def core_versus_extended_accuracy(train_set, validation_set):
 
 def shapley_score_table(train_set):
     outcome = train_set[TARGET].to_numpy().reshape(-1, 1)
-    train_features = train_set[EXTENDED_FEATURES]
-    features = train_features.to_numpy()
-    protected = train_features["race"].to_numpy().reshape(-1, 1)
+    features = train_set[NON_PROTECTED_FEATURES].to_numpy()
+    protected = train_set[PROTECTED_ATTRIBUTE].to_numpy().reshape(-1, 1)
+    feature_count = len(NON_PROTECTED_FEATURES)
 
-    shapley_accuracy, shapley_discrimination = [], []
-    for feature_index in range(len(EXTENDED_FEATURES)):
-        shapley_accuracy.append(marginal_accuracy_coef(outcome, features, protected, feature_index))
-        shapley_discrimination.append(marginal_discrimination_coef(outcome, features, protected, feature_index))
+    accuracy_values = values_for_all_subsets(lambda subset: accuracy_coefficient(outcome, features, protected, subset), feature_count)
+    discrimination_values = values_for_all_subsets(lambda subset: discrimination_coefficient(outcome, features, protected, subset), feature_count)
 
     return pd.DataFrame({
-        "feature": EXTENDED_FEATURES,
-        "accuracy_coef": shapley_accuracy,
-        "discrimination_coef": shapley_discrimination,
+        "feature": NON_PROTECTED_FEATURES,
+        "accuracy_coef": shapley_values(accuracy_values, feature_count),
+        "discrimination_coef": shapley_values(discrimination_values, feature_count),
     })
 
 
