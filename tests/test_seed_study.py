@@ -4,7 +4,9 @@ import pytest
 
 from compas_fairness.data import load_compas
 from compas_fairness.seed_study import (
+    STAY_TREATMENTS,
     accuracy_points_lost_to_reach,
+    missing_dates_sensitivity,
     part1_cost_table,
     part1_seed_table,
     summarize_over_seeds,
@@ -50,3 +52,11 @@ def test_cost_table_reports_a_positive_cost_for_race_and_none_for_the_oldest_gro
     assert 0 < table.loc[0, "race"] < 20
     assert table.loc[0, "sex"] >= 0
     assert table.loc[0, "age_group_2"] <= 1
+
+
+def test_missing_dates_sensitivity_has_the_expected_row_counts_for_each_treatment():
+    table = missing_dates_sensitivity(load_compas(), seeds=(0,))
+    assert table.loc[(STAY_TREATMENTS[0], "rows"), "mean"] == 5915
+    assert table.loc[(STAY_TREATMENTS[1], "rows"), "mean"] == 6150
+    assert table.loc[(STAY_TREATMENTS[2], "rows"), "mean"] == 6150
+    assert table.xs("unconstrained_p_rule", level="metric")["mean"].between(30, 90).all()

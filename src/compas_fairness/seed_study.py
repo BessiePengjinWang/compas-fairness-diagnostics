@@ -1,8 +1,19 @@
 import pandas as pd
 
 from compas_fairness.baselines import baseline_report
-from compas_fairness.preprocessing import AGE_CATEGORY_MAPPING
+from compas_fairness.config import TARGET
+from compas_fairness.missingness import jail_dates_missing_mask
+from compas_fairness.preprocessing import (
+    AGE_CATEGORY_MAPPING,
+    add_length_of_stay,
+    bin_priors_count,
+    drop_rows_missing_jail_dates,
+    encode_features,
+)
 from compas_fairness.threshold_experiments import (
+    RACE_MODEL_FEATURES,
+    RACE_SOURCE_COLUMNS,
+    assemble_experiment,
     build_age_experiment,
     build_race_experiment,
     build_sex_experiment,
@@ -94,3 +105,51 @@ def part1_cost_table(data, seeds=DEFAULT_SEEDS, target=TARGET_P_RULE):
             record[f"age_group_{age_group}"] = accuracy_points_lost_to_reach(age_experiment, age_group, 101, target)
         records.append(record)
     return pd.DataFrame(records)
+
+
+STAY_TREATMENTS = (
+    "drop rows without jail dates",
+    "keep rows, add a stay-unknown flag",
+    "keep rows, do not use the stay feature",
+)
+
+
+def race_frame_for_stay_treatment(data, treatment):
+    base = encode_features(data[RACE_SOURCE_COLUMNS + [TARGET, "race"]])
+    missing = jail_dates_missing_mask(base)
+    if treatment == STAY_TREATMENTS[0]:
+        frame = bin_priors_count(add_length_of_stay(drop_rows_missing_jail_dates(base)))
+        return frame, RACE_MODEL_FEATURES
+    if treatment == STAY_TREATMENTS[1]:
+        complete = add_length_of_stay(base[~missing])
+        incomplete = base[missing].copy()
+        incomplete["length_of_stay"] = 1
+        frame = pd.concat([complete, incomplete]).sort_index()
+        frame["stay_unknown"] = missing.loc[frame.index].astype(int)
+        return bin_priors_count(frame), RACE_MODEL_FEATURES + ["stay_unknown"]
+    if treatment == STAY_TREATMENTS[2]:
+        return bin_priors_count(base.copy()), [name for name in RACE_MODEL_FEATURES if name != "length_of_stay"]
+    raise ValueError(f"unknown treatment: {treatment}")
+
+
+def missing_dates_sensitivity(data, seeds=DEFAULT_SEEDS, treatments=STAY_TREATMENTS):
+    summaries = {}
+    for treatment in treatments:
+        frame, features = race_frame_for_stay_treatment(data, treatment)
+        records = []
+        for seed in seeds:
+            experiment = assemble_experiment("race", frame[features], frame[TARGET], frame["race"], seed)
+            unconstrained = unconstrained_report(experiment, 0)
+            record = {
+                "seed": seed,
+                "rows": len(frame),
+                "unconstrained_accuracy": unconstrained["accuracy"],
+                "unconstrained_p_rule": unconstrained["p_rule"],
+            }
+            for gamma in (0.10, 0.15):
+                report = fair_threshold_report(experiment, 0, gamma)
+                record[f"gamma_{gamma:.2f}_accuracy"] = report["accuracy"]
+                record[f"gamma_{gamma:.2f}_p_rule"] = report["p_rule"]
+            records.append(record)
+        summaries[treatment] = summarize_over_seeds(pd.DataFrame(records))
+    return pd.concat(summaries, names=["treatment", "metric"])
