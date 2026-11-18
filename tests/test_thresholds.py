@@ -11,17 +11,7 @@ from compas_fairness.threshold_experiments import (
     fair_threshold_report,
 )
 from compas_fairness.thresholds import optimize_threshold_from_probabilities
-
-
-class FixedProbabilityModel:
-    def __init__(self, probabilities):
-        self.probabilities = np.asarray(probabilities, dtype=float)
-
-    def predict_proba(self, features):
-        return np.column_stack([1 - self.probabilities, self.probabilities])
-
-    def predict(self, features):
-        return (self.probabilities > 0.5).astype(int)
+from tests.stubs import FixedProbabilityModel
 
 
 def test_optimizer_picks_the_first_threshold_that_equalizes_rates_within_the_budget():

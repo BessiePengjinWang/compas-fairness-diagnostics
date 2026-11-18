@@ -64,3 +64,33 @@ def part1_seed_table(data, seeds=DEFAULT_SEEDS):
 
 def summarize_over_seeds(seed_table):
     return seed_table.drop(columns="seed").agg(["mean", "std", "min", "max"]).T
+
+
+TARGET_P_RULE = 80.0
+GAMMA_GRID = tuple(round(0.01 * step, 2) for step in range(31))
+
+
+def accuracy_points_lost_to_reach(experiment, group_value, n_thresholds, target=TARGET_P_RULE):
+    baseline = unconstrained_report(experiment, group_value)
+    if baseline["p_rule"] >= target:
+        return 0.0
+    for gamma in GAMMA_GRID:
+        report = fair_threshold_report(experiment, group_value, gamma, n_thresholds)
+        if report["p_rule"] >= target:
+            return (baseline["accuracy"] - report["accuracy"]) * 100
+    return float("nan")
+
+
+def part1_cost_table(data, seeds=DEFAULT_SEEDS, target=TARGET_P_RULE):
+    records = []
+    for seed in seeds:
+        age_experiment = build_age_experiment(data, seed)
+        record = {
+            "seed": seed,
+            "race": accuracy_points_lost_to_reach(build_race_experiment(data, seed), 0, 1001, target),
+            "sex": accuracy_points_lost_to_reach(build_sex_experiment(data, seed), "Female", 101, target),
+        }
+        for age_group in AGE_CATEGORY_MAPPING.values():
+            record[f"age_group_{age_group}"] = accuracy_points_lost_to_reach(age_experiment, age_group, 101, target)
+        records.append(record)
+    return pd.DataFrame(records)
