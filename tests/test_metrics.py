@@ -45,3 +45,8 @@ def test_calibration_gap_does_not_depend_on_which_group_is_more_accurate():
     predictions = np.array([0, 0, 1, 1])
     truth = np.array([1, 1, 1, 1])
     assert calibration_gap(protected, predictions, truth) == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("protected_rate, non_protected_rate", [(0.0, 0.5), (0.5, 0.0), (0.0, 0.0)])
+def test_p_rule_is_not_a_number_when_a_group_has_no_positive_predictions(protected_rate, non_protected_rate):
+    assert np.isnan(p_rule(protected_rate, non_protected_rate))

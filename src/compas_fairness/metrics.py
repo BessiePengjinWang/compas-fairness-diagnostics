@@ -1,4 +1,6 @@
 def p_rule(protected_rate, non_protected_rate):
+    if protected_rate <= 0 or non_protected_rate <= 0:
+        return float("nan")
     return min(protected_rate / non_protected_rate, non_protected_rate / protected_rate) * 100
 
 
