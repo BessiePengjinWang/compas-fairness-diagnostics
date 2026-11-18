@@ -108,3 +108,51 @@ def final_feature_set_comparison(train_set, validation_set, random_state=RANDOM_
             "validation_accuracy": classifier.score(validation_subset, validation_labels),
         })
     return pd.DataFrame(comparison)
+
+
+DEFAULT_SPLIT_SEEDS = tuple(range(20))
+
+
+def feature_removal_over_splits(final_dataset, seeds=DEFAULT_SPLIT_SEEDS):
+    collected = []
+    for seed in seeds:
+        train_set, test_set, _ = split_train_test_validation(final_dataset, seed)
+        results = feature_removal_results(train_set, test_set)
+        results["seed"] = seed
+        collected.append(results)
+    return pd.concat(collected, ignore_index=True)
+
+
+def summarize_feature_removal(per_split_results):
+    base = per_split_results[per_split_results["removed_feature"] == "base"].set_index("seed")
+    rows = []
+    for feature, group in per_split_results.groupby("removed_feature", sort=False):
+        group = group.set_index("seed")
+        rows.append({
+            "removed_feature": feature,
+            "accuracy_mean": group["accuracy"].mean(),
+            "accuracy_sd": group["accuracy"].std(),
+            "gap_mean": group["accuracy_gap_between_races"].mean(),
+            "gap_sd": group["accuracy_gap_between_races"].std(),
+            "share_of_splits_gap_below_base": (group["accuracy_gap_between_races"] < base["accuracy_gap_between_races"]).mean(),
+            "share_of_splits_accuracy_at_or_above_base": (group["accuracy"] >= base["accuracy"] - 1e-12).mean(),
+        })
+    return pd.DataFrame(rows)
+
+
+def final_comparison_over_splits(final_dataset, seeds=DEFAULT_SPLIT_SEEDS):
+    collected = []
+    for seed in seeds:
+        train_set, _, validation_set = split_train_test_validation(final_dataset, seed)
+        results = final_feature_set_comparison(train_set, validation_set)
+        results["seed"] = seed
+        collected.append(results)
+    per_split = pd.concat(collected, ignore_index=True)
+    pivot = per_split.pivot(index="seed", columns="dropped_features", values="validation_accuracy")
+    best_each_split = pivot.max(axis=1)
+    summary = pd.DataFrame({
+        "validation_accuracy_mean": pivot.mean(),
+        "validation_accuracy_sd": pivot.std(),
+        "share_of_splits_best_or_tied": (pivot.ge(best_each_split - 1e-12, axis=0)).mean(),
+    })
+    return summary.loc[[", ".join(drop) for drop in CANDIDATE_DROPS]]
