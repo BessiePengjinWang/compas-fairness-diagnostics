@@ -1,17 +1,17 @@
 import pandas as pd
 
+RACE_MAPPING = {"African-American": 0, "Caucasian": 1}
+SEX_MAPPING = {"Male": 1, "Female": 0}
+AGE_CATEGORY_MAPPING = {"Less than 25": 0, "25 - 45": 1, "Greater than 45": 2}
+CHARGE_DEGREE_MAPPING = {"F": 0, "M": 1}
+
 
 def encode_features(df):
-    race_mapping = {"African-American": 0, "Caucasian": 1}
-    sex_mapping = {"Male": 1, "Female": 0}
-    age_cat_mapping = {"Less than 25": 0, "25 - 45": 1, "Greater than 45": 2}
-    charge_degree_mapping = {"F": 0, "M": 1}
-
-    df = df[df["race"].isin(race_mapping)].copy()
-    df["race"] = df["race"].map(race_mapping)
-    df["sex"] = df["sex"].map(sex_mapping)
-    df["age_cat"] = df["age_cat"].map(age_cat_mapping)
-    df["c_charge_degree"] = df["c_charge_degree"].map(charge_degree_mapping)
+    df = df[df["race"].isin(RACE_MAPPING)].copy()
+    df["race"] = df["race"].map(RACE_MAPPING)
+    df["sex"] = df["sex"].map(SEX_MAPPING)
+    df["age_cat"] = df["age_cat"].map(AGE_CATEGORY_MAPPING)
+    df["c_charge_degree"] = df["c_charge_degree"].map(CHARGE_DEGREE_MAPPING)
     return df
 
 
