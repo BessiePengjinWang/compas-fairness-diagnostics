@@ -4,16 +4,15 @@ from sklearn.metrics import accuracy_score
 from compas_fairness.metrics import p_rule
 
 
-def optimize_threshold_for_fairness(model, X_test, y_test, protected, gamma=0.0, n_thresholds=1001):
-    baseline_accuracy = accuracy_score(y_test, model.predict(X_test))
+def optimize_threshold_from_probabilities(probabilities, labels, protected, gamma=0.0, n_thresholds=1001):
+    baseline_accuracy = accuracy_score(labels, (probabilities > 0.5).astype(int))
     target_accuracy = baseline_accuracy * (1 - gamma)
-    probabilities = model.predict_proba(X_test)[:, 1]
 
     best = {"threshold": 0.5, "accuracy": baseline_accuracy, "p_rule": 0.0, "covariance": float("inf")}
 
     for threshold in np.linspace(0, 1, n_thresholds):
         y_pred = (probabilities >= threshold).astype(int)
-        accuracy = accuracy_score(y_test, y_pred)
+        accuracy = accuracy_score(labels, y_pred)
         if accuracy < target_accuracy:
             continue
 
