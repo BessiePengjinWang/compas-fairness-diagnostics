@@ -95,3 +95,19 @@ def shapley_values(subset_values, feature_count):
 
 def fairness_utility_score(accuracy_coefficients, discrimination_coefficients, alpha):
     return accuracy_coefficients - alpha * discrimination_coefficients
+
+
+def permutation_null_conditional_information(first, second, given, permutations=200, seed=0):
+    first_matrix = as_integer_matrix(first)
+    second_matrix = as_integer_matrix(second)
+    given_matrix = as_integer_matrix(given)
+    strata = np.unique(given_matrix, axis=0, return_inverse=True)[1].reshape(-1)
+    group_positions = [np.nonzero(strata == stratum)[0] for stratum in range(strata.max() + 1)]
+    generator = np.random.default_rng(seed)
+    values = np.zeros(permutations)
+    for run in range(permutations):
+        shuffled = second_matrix.copy()
+        for positions in group_positions:
+            shuffled[positions] = second_matrix[generator.permutation(positions)]
+        values[run] = conditional_mutual_information(first_matrix, shuffled, given_matrix)
+    return values

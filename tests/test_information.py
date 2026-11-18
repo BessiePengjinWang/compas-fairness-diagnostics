@@ -13,6 +13,7 @@ from compas_fairness.information import (
     discrimination_coefficient,
     fairness_utility_score,
     mutual_information,
+    permutation_null_conditional_information,
     shapley_values,
     values_for_all_subsets,
 )
@@ -135,3 +136,35 @@ def test_fairness_utility_score_rewards_accuracy_and_penalizes_discrimination():
     accuracy = np.array([0.04, 0.02])
     discrimination = np.array([0.01, 0.0])
     assert fairness_utility_score(accuracy, discrimination, alpha=2.0) == pytest.approx([0.02, 0.02])
+
+
+def test_permutation_null_shows_the_upward_bias_of_the_estimator_with_many_small_strata():
+    generator = np.random.default_rng(0)
+    row_count = 300
+    first = generator.integers(0, 2, size=row_count)
+    second = generator.integers(0, 2, size=row_count)
+    given = np.repeat(np.arange(50), 6)
+    observed = conditional_mutual_information(first, second, given)
+    null_values = permutation_null_conditional_information(first, second, given, permutations=100, seed=1)
+    assert null_values.mean() > 0.05
+    assert abs(observed - null_values.mean()) < 3 * null_values.std() + 1e-12
+
+
+def test_permutation_null_is_far_below_the_observed_value_for_a_real_dependence():
+    generator = np.random.default_rng(2)
+    first = generator.integers(0, 2, size=400)
+    second = first.copy()
+    given = generator.integers(0, 3, size=400)
+    observed = conditional_mutual_information(first, second, given)
+    null_values = permutation_null_conditional_information(first, second, given, permutations=100, seed=3)
+    assert observed > null_values.max()
+
+
+def test_permutation_null_never_moves_values_across_strata():
+    first = np.array([0, 1, 0, 1, 0, 1])
+    second = np.array([0, 0, 0, 1, 1, 1])
+    given = np.array([0, 0, 0, 1, 1, 1])
+    null_values = permutation_null_conditional_information(first, second, given, permutations=20, seed=0)
+    assert (null_values >= 0).all()
+    constant_second = np.zeros(6, dtype=int)
+    assert permutation_null_conditional_information(first, constant_second, given, permutations=5, seed=0) == pytest.approx(np.zeros(5))
