@@ -1,5 +1,6 @@
 import pandas as pd
 
+from compas_fairness.baselines import baseline_report
 from compas_fairness.preprocessing import AGE_CATEGORY_MAPPING
 from compas_fairness.threshold_experiments import (
     build_age_experiment,
@@ -15,6 +16,15 @@ SEX_GAMMA = 0.20
 AGE_GAMMA = 0.15
 
 
+def add_baselines(record, prefix, report):
+    by_method = report.set_index("method")
+    record[f"{prefix}_majority_class_accuracy"] = by_method.loc["always predict the majority class", "accuracy"]
+    record[f"{prefix}_compas_accuracy"] = by_method.loc["COMPAS decile score >= 5", "accuracy"]
+    record[f"{prefix}_compas_p_rule"] = by_method.loc["COMPAS decile score >= 5", "p_rule"]
+    record[f"{prefix}_compas_auc"] = by_method.loc["COMPAS decile score >= 5", "auc"]
+    record[f"{prefix}_model_auc"] = by_method.loc["logistic regression (project model)", "auc"]
+
+
 def part1_seed_table(data, seeds=DEFAULT_SEEDS):
     records = []
     for seed in seeds:
@@ -24,6 +34,7 @@ def part1_seed_table(data, seeds=DEFAULT_SEEDS):
         race_report = unconstrained_report(race_experiment, 0)
         record["race_unconstrained_accuracy"] = race_report["accuracy"]
         record["race_unconstrained_p_rule"] = race_report["p_rule"]
+        add_baselines(record, "race", baseline_report(race_experiment, data, 0))
         for gamma in RACE_GAMMAS:
             report = fair_threshold_report(race_experiment, 0, gamma)
             record[f"race_gamma_{gamma:.2f}_accuracy"] = report["accuracy"]
@@ -33,12 +44,14 @@ def part1_seed_table(data, seeds=DEFAULT_SEEDS):
         sex_report = unconstrained_report(sex_experiment, "Female")
         record["sex_unconstrained_accuracy"] = sex_report["accuracy"]
         record["sex_unconstrained_p_rule"] = sex_report["p_rule"]
+        add_baselines(record, "sex", baseline_report(sex_experiment, data, "Female"))
         report = fair_threshold_report(sex_experiment, "Female", SEX_GAMMA, 101)
         record[f"sex_gamma_{SEX_GAMMA:.2f}_accuracy"] = report["accuracy"]
         record[f"sex_gamma_{SEX_GAMMA:.2f}_p_rule"] = report["p_rule"]
 
         age_experiment = build_age_experiment(data, seed)
         record["age_unconstrained_accuracy"] = unconstrained_report(age_experiment, 0)["accuracy"]
+        add_baselines(record, "age", baseline_report(age_experiment, data, 0))
         for age_group in AGE_CATEGORY_MAPPING.values():
             record[f"age_group_{age_group}_unconstrained_p_rule"] = unconstrained_report(age_experiment, age_group)["p_rule"]
             report = fair_threshold_report(age_experiment, age_group, AGE_GAMMA, 101)
