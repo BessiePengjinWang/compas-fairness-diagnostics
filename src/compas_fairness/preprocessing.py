@@ -15,7 +15,13 @@ def encode_features(df):
     return df
 
 
+def drop_rows_missing_jail_dates(df):
+    return df.dropna(subset=["c_jail_in", "c_jail_out"])
+
+
 def add_length_of_stay(df):
+    if df[["c_jail_in", "c_jail_out"]].isna().any().any():
+        raise ValueError("c_jail_in and c_jail_out must not be missing; drop those rows first")
     df = df.copy()
     jail_in = pd.to_datetime(df["c_jail_in"])
     jail_out = pd.to_datetime(df["c_jail_out"])

@@ -1,6 +1,12 @@
 import pandas as pd
+import pytest
 
-from compas_fairness.preprocessing import add_length_of_stay, bin_priors_count, encode_features
+from compas_fairness.preprocessing import (
+    add_length_of_stay,
+    bin_priors_count,
+    drop_rows_missing_jail_dates,
+    encode_features,
+)
 
 
 def test_bin_priors_count_boundaries():
@@ -32,3 +38,21 @@ def test_encode_features_keeps_two_races_and_maps_labels():
     assert encoded["age_cat"].tolist() == [0, 1]
     assert encoded["c_charge_degree"].tolist() == [0, 1]
     assert len(frame) == 3
+
+
+def test_add_length_of_stay_rejects_missing_dates():
+    frame = pd.DataFrame({
+        "c_jail_in": ["2013-01-01 00:00:00", None],
+        "c_jail_out": ["2013-01-03 00:00:00", None],
+    })
+    with pytest.raises(ValueError):
+        add_length_of_stay(frame)
+
+
+def test_drop_rows_missing_jail_dates_keeps_only_complete_rows():
+    frame = pd.DataFrame({
+        "id": [1, 2, 3],
+        "c_jail_in": ["2013-01-01 00:00:00", None, "2013-02-01 00:00:00"],
+        "c_jail_out": ["2013-01-03 00:00:00", "2013-01-05 00:00:00", None],
+    })
+    assert drop_rows_missing_jail_dates(frame)["id"].tolist() == [1]

@@ -4,7 +4,12 @@ from sklearn.linear_model import LogisticRegression
 from compas_fairness.config import RANDOM_STATE, TARGET
 from compas_fairness.information import marginal_accuracy_coef, marginal_discrimination_coef
 from compas_fairness.metrics import calibration_gap
-from compas_fairness.preprocessing import add_length_of_stay, bin_priors_count, encode_features
+from compas_fairness.preprocessing import (
+    add_length_of_stay,
+    bin_priors_count,
+    drop_rows_missing_jail_dates,
+    encode_features,
+)
 
 CORE_FEATURES = ["c_charge_degree", "age_cat", "sex", "race", "length_of_stay"]
 EXTENDED_FEATURES = ["priors_count"] + CORE_FEATURES
@@ -19,6 +24,7 @@ CANDIDATE_DROPS = [
 
 def build_part2_dataset(data):
     prepared = encode_features(data)
+    prepared = drop_rows_missing_jail_dates(prepared)
     prepared = add_length_of_stay(prepared)
     prepared = bin_priors_count(prepared)
     return prepared.drop_duplicates()

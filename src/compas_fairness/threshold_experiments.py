@@ -12,6 +12,7 @@ from compas_fairness.preprocessing import (
     AGE_CATEGORY_MAPPING,
     add_length_of_stay,
     bin_priors_count,
+    drop_rows_missing_jail_dates,
     encode_features,
 )
 from compas_fairness.thresholds import optimize_threshold_for_fairness
@@ -36,6 +37,7 @@ class ThresholdExperiment:
 
 def build_race_experiment(data, random_state=RANDOM_STATE):
     race_data = encode_features(data[RACE_SOURCE_COLUMNS + [TARGET, "race"]])
+    race_data = drop_rows_missing_jail_dates(race_data)
     race_data = add_length_of_stay(race_data)
     race_data = bin_priors_count(race_data)
     X, y = race_data[RACE_MODEL_FEATURES], race_data[TARGET]
