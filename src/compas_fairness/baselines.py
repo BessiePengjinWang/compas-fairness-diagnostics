@@ -36,3 +36,8 @@ def baseline_report(experiment, data, group_value, cutoff=COMPAS_HIGH_RISK_CUTOF
         baseline_row("logistic regression (project model)", experiment.model.predict(experiment.X_test), model_probabilities, y_test, protected),
     ]
     return pd.DataFrame(rows)
+
+
+def majority_class_accuracy(experiment):
+    majority_class = int(experiment.y_train.mean() >= 0.5)
+    return accuracy_score(experiment.y_test.to_numpy(), np.full(len(experiment.y_test), majority_class))
