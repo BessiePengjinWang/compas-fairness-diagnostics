@@ -8,7 +8,7 @@ from compas_fairness.information import (
     shapley_values,
     values_for_all_subsets,
 )
-from compas_fairness.metrics import calibration_gap
+from compas_fairness.metrics import group_accuracy_gap
 from compas_fairness.preprocessing import (
     add_length_of_stay,
     bin_priors_count,
@@ -90,7 +90,7 @@ def feature_removal_results(train_set, test_set, random_state=RANDOM_STATE):
         results.append({
             "removed_feature": feature,
             "accuracy": classifier.score(test_subset, test_labels),
-            "calibration_gap": calibration_gap(test_set["race"].to_numpy(), predictions, test_labels),
+            "accuracy_gap_between_races": group_accuracy_gap(test_set["race"].to_numpy(), predictions, test_labels),
         })
     return pd.DataFrame(results)
 

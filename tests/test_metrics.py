@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from compas_fairness.metrics import calibration_gap, p_rule
+from compas_fairness.metrics import group_accuracy_gap, p_rule
 
 
 @pytest.mark.parametrize(
@@ -19,32 +19,32 @@ def test_p_rule_never_exceeds_one_hundred():
             assert p_rule(protected_rate, non_protected_rate) <= 100.0 + 1e-9
 
 
-def test_calibration_gap_is_one_when_one_group_all_right_and_other_all_wrong():
+def test_group_accuracy_gap_is_one_when_one_group_all_right_and_other_all_wrong():
     protected = np.array([1, 1, 0, 0])
     predictions = np.array([1, 1, 0, 0])
     truth = np.array([1, 1, 1, 1])
-    assert calibration_gap(protected, predictions, truth) == pytest.approx(1.0)
+    assert group_accuracy_gap(protected, predictions, truth) == pytest.approx(1.0)
 
 
-def test_calibration_gap_known_partial_answer():
+def test_group_accuracy_gap_known_partial_answer():
     protected = np.array([1, 1, 1, 1, 0, 0, 0, 0])
     predictions = np.array([1, 1, 1, 0, 1, 1, 0, 0])
     truth = np.ones(8, dtype=int)
-    assert calibration_gap(protected, predictions, truth) == pytest.approx(0.25)
+    assert group_accuracy_gap(protected, predictions, truth) == pytest.approx(0.25)
 
 
-def test_calibration_gap_is_zero_when_groups_equally_accurate():
+def test_group_accuracy_gap_is_zero_when_groups_equally_accurate():
     protected = np.array([1, 1, 0, 0])
     predictions = np.array([1, 0, 1, 0])
     truth = np.array([1, 1, 1, 1])
-    assert calibration_gap(protected, predictions, truth) == pytest.approx(0.0)
+    assert group_accuracy_gap(protected, predictions, truth) == pytest.approx(0.0)
 
 
-def test_calibration_gap_does_not_depend_on_which_group_is_more_accurate():
+def test_group_accuracy_gap_does_not_depend_on_which_group_is_more_accurate():
     protected = np.array([1, 1, 0, 0])
     predictions = np.array([0, 0, 1, 1])
     truth = np.array([1, 1, 1, 1])
-    assert calibration_gap(protected, predictions, truth) == pytest.approx(1.0)
+    assert group_accuracy_gap(protected, predictions, truth) == pytest.approx(1.0)
 
 
 @pytest.mark.parametrize("protected_rate, non_protected_rate", [(0.0, 0.5), (0.5, 0.0), (0.0, 0.0)])
