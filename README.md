@@ -62,6 +62,18 @@ The unconstrained age model has accuracy 0.636 (0.622–0.656). Each group gets 
 | Sex | 2.3 | 0.4 to 5.5 |
 | Age over 45 | −0.2 | −2.5 to 0.0 |
 
+### Does dropping the defendants without jail dates bias the results?
+
+235 of the 6,150 African-American and Caucasian defendants have no jail dates and are dropped from the race and feature-selection analyses (the paper also drops records with missing information). The missing share is slightly higher for African-American defendants (159 of 3,696, 4.3%) than for Caucasian defendants (76 of 2,454, 3.1%; p = 0.016), and the defendants without dates re-offend much less often (17.4% against 47.8%), so the missing dates are not random. Dropping them moves the African-American share of the data from 60.1% to 59.8%. To check whether this matters, the race experiment was repeated over 20 splits under three treatments (mean and range; test rows differ between treatments):
+
+| Treatment of the 235 defendants | Rows | Accuracy | P-rule | P-rule at `gamma` = 0.15 |
+|---|---|---|---|---|
+| Drop them (used everywhere above) | 5,915 | 0.662 (0.650–0.679) | 60.1 (55.6–63.7) | 85.1 (82.6–90.2) |
+| Keep them, add a "stay unknown" flag | 6,150 | 0.664 (0.651–0.679) | 60.9 (56.6–65.5) | 84.9 (79.2–88.4) |
+| Keep them, do not use the stay feature | 6,150 | 0.654 (0.636–0.670) | 55.8 (52.0–60.6) | 81.9 (77.2–87.6) |
+
+Dropping and flagging give the same picture within the split-to-split range. Not using the stay feature at all costs about 0.8 accuracy points and lowers the p-rule by about 4 points, so the feature carries real information.
+
 ### Feature analysis (race is the protected attribute, 5,915 defendants)
 
 Marginal accuracy and discrimination coefficients (Shapley values) on the 4,225 training rows of the seed-42 split:
@@ -140,7 +152,7 @@ The accuracy gap varies from split to split with a standard deviation of about 0
 - **One place and time.** Broward County, Florida, around 2013 to 2014. The results should not be assumed to carry over elsewhere.
 - **Descriptive, not causal.** The analysis shows which features carry which information, not what causes the disparity. Prior-offense counts may themselves reflect policing intensity.
 - **Models do not use the protected attribute as an input** in Part 1, yet still show disparities, because other features act as proxies.
-- **Rows dropped.** 235 of the 6,150 African-American and Caucasian defendants have no jail dates and are removed from the race and feature-selection analyses; the sex and age experiments use all 7,214 rows and do not use stay length.
+- **Rows dropped.** 235 of the 6,150 African-American and Caucasian defendants have no jail dates and are removed from the race and feature-selection analyses; the sex and age experiments use all 7,214 rows and do not use stay length. Their missingness is related to race and to the outcome (see the sensitivity table above); it did not change the race results beyond the split-to-split range, but the reason these dates are missing (for example, never booked into jail) was not verified. Stay length, and whether it is missing, may only be known after the COMPAS screening (45% of jail-out dates are later than the screening date), so using it as a predictor may not match what was known at scoring time.
 - **Data quirks.** The `age` column does not match "screening date minus birth date" for most rows, most likely because it is age at the time of data collection (this reason was not verified). Two columns appear twice in the raw file (`priors_count`, `decile_score`) with identical values. The raw file contains defendants' names and birth dates (public record); the code never uses them.
 - **Unverified.**
   - The raw data file was not compared with the original ProPublica release; row, column and group counts were only checked against memory of that release.
@@ -163,7 +175,7 @@ pytest
 jupyter nbconvert --to notebook --execute --inplace notebooks/fairness_diagnostics.ipynb
 ```
 
-Measured on a fresh clone with an empty pip cache: installing the dependencies about 80 seconds (depends on the network), the 76 tests about 28 seconds, and executing the notebook about 92 seconds, roughly three and a half minutes in total. The executed notebook reproduces the committed outputs and figure exactly, and Python 3.14.7 and 3.12.12 give identical numbers. The last command rewrites the notebook file in place; `git checkout notebooks/fairness_diagnostics.ipynb` restores the committed version.
+Measured on a fresh clone with an empty pip cache: installing the dependencies 75 to 79 seconds (depends on the network), the 80 tests about 29 seconds, and executing the notebook 114 to 125 seconds, roughly four minutes in total. The executed notebook reproduces the committed outputs and figure exactly, and Python 3.14.7 and 3.12.12 give identical numbers. The last command rewrites the notebook file in place; `git checkout notebooks/fairness_diagnostics.ipynb` restores the committed version.
 
 ## Repository structure
 
@@ -185,6 +197,7 @@ Measured on a fresh clone with an empty pip cache: installing the dependencies a
 │   ├── feature_selection.py            feature analysis, Shapley scores, feature removal
 │   ├── information.py                  mutual information, coefficients, Shapley values
 │   ├── metrics.py                      p-rule and group accuracy gap
+│   ├── missingness.py                  missing jail dates by race and by outcome
 │   ├── partial_information.py          shared and unique information (optimization)
 │   ├── plots.py                        the gamma sweep figure
 │   ├── preprocessing.py                encoding, binning, dropping rows without dates
