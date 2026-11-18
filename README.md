@@ -1,171 +1,62 @@
 # COMPAS Fairness Diagnostics
 
-## What this project does, in plain language
+Trains a logistic regression on ProPublica's public COMPAS data (7,214 defendants, Broward County, Florida) to predict re-offending within two years, then measures:
 
-COMPAS is a commercial tool that gives defendants in US courts a "risk of re-offending" score. In 2016 the news organization ProPublica published the scores and the real outcomes for about 7,000 defendants in Broward County, Florida, and argued that the scores treated Black defendants less fairly than white defendants.
+1. how much accuracy is lost when the decision threshold is moved to flag African-American and Caucasian defendants at more similar rates (also for sex and age);
+2. which features carry information that is both predictive and correlated with race, following [Khodadadian et al., 2021](https://arxiv.org/abs/2106.00772).
 
-This project uses that public data to ask two practical questions about a simple prediction model trained on it:
+Everything is averaged over 20 random splits and compared with baselines. Walkthrough: [notebook](notebooks/fairness_diagnostics.ipynb). Code: `src/compas_fairness`.
 
-1. **If we want the model to flag Black and white defendants as "high risk" at more similar rates, how much predictive accuracy do we have to give up?** The model's decision threshold (the probability above which someone is flagged) is moved to trade accuracy for fairness. The same is done for sex and for age groups.
-2. **Which input features carry the information that is both useful for prediction and correlated with race?** An information-theoretic score (mutual information combined with Shapley values, following [Khodadadian et al., 2021](https://arxiv.org/abs/2106.00772)) is computed for each feature, and the effect of removing features is checked on held-out data.
+## Findings
 
-Everything is reported over 20 different random train/test splits and compared with simple baselines, because a single split can be misleading. The full analysis is in [notebooks/fairness_diagnostics.ipynb](notebooks/fairness_diagnostics.ipynb); the code lives in a small package under `src/compas_fairness`.
-
-## Key findings
-
-- The logistic regression is **no better than the COMPAS score** it is compared with: accuracy 0.662 against 0.656 and AUC 0.709 against 0.707 on the race split (means over 20 splits), and always predicting the more common outcome already scores 0.520.
-- Its p-rule between African-American and Caucasian defendants (about 60%) is lower than the p-rule of the real labels themselves (about 76%), so the model widens the disparity in the data instead of only reproducing it.
-- Moving the threshold raises the p-rule, but at a steep price: reaching a p-rule of 80% costs 7.7 accuracy points for race, 9.4 for under-25s, 3.4 for ages 25 to 45 and 2.3 for sex, and at a p-rule near 90% the race model is only a little more accurate than always guessing the more common outcome.
-- The features that help prediction most, prior-offense count and age category, are also the strongest proxies for race. **Removing race itself does not change accuracy (0.661 against 0.663) or the accuracy gap between races (0.0257 against 0.0243)**, because the other features carry much of the same information.
+- No better than the COMPAS score: accuracy 0.662 against 0.656, AUC 0.709 against 0.707. Always guessing the more common outcome scores 0.520.
+- The p-rule between races is about 60%, lower than the 76% of the real labels: the model widens the gap.
+- Reaching a p-rule of 80% costs 7.7 accuracy points for race, 9.4 for under-25s and 2.3 for sex.
+- Removing race changes neither accuracy (0.661 against 0.663) nor the accuracy gap between races (0.0257 against 0.0243). Prior-offense count and age category are the strongest proxies for race.
 
 ## Results
 
-All numbers are on held-out test rows. "20 splits" means the data was split at random 20 times (seeds 0 to 19, 70% training, 30% test) and each cell shows the **mean and the range (minimum to maximum)**. The threshold is always chosen on the training rows only. Baselines are computed on the same test rows as the model. The p-rule is the ratio of the rates at which the two groups are flagged (100% is parity). AUC is the chance that a randomly chosen person who re-offended gets a higher score than one who did not (0.5 is guessing).
-
-### Race (African-American against Caucasian, 5,915 defendants)
+Mean (minimum–maximum) over 20 splits (seeds 0–19, 70% train). Test rows only; thresholds are chosen on training rows only; baselines use the same test rows. Race: African-American against Caucasian, 5,915 defendants.
 
 | Method | Accuracy | P-rule | AUC |
 |---|---|---|---|
 | Always predict the more common outcome | 0.520 (0.495–0.541) | not defined | 0.500 |
-| COMPAS decile score ≥ 5 (same test rows) | 0.656 (0.639–0.671) | 60.0 (54.7–63.8) | 0.707 (0.689–0.726) |
-| Logistic regression, no fairness threshold | 0.662 (0.650–0.679) | 60.1 (55.6–63.7) | 0.709 (0.699–0.724) |
-| Logistic regression, `gamma` = 0.10 | 0.598 (0.570–0.637) | 79.1 (74.8–83.9) | |
-| Logistic regression, `gamma` = 0.15 | 0.563 (0.529–0.593) | 85.1 (82.6–90.2) | |
-| Logistic regression, `gamma` = 0.20 | 0.532 (0.501–0.559) | 90.4 (88.0–93.8) | |
+| COMPAS decile score ≥ 5 | 0.656 (0.639–0.671) | 60.0 (54.7–63.8) | 0.707 (0.689–0.726) |
+| Logistic regression | 0.662 (0.650–0.679) | 60.1 (55.6–63.7) | 0.709 (0.699–0.724) |
+| … with fairness threshold, `gamma` = 0.10 | 0.598 (0.570–0.637) | 79.1 (74.8–83.9) | |
+| … `gamma` = 0.15 | 0.563 (0.529–0.593) | 85.1 (82.6–90.2) | |
+| … `gamma` = 0.20 | 0.532 (0.501–0.559) | 90.4 (88.0–93.8) | |
 
-### Sex (protected group: female, 7,214 defendants)
+Sex (female protected; majority class 0.550, COMPAS 0.656): p-rule 65.3 (59.1–73.3) rises to 94.8 (88.6–98.3) at `gamma` = 0.20 while accuracy falls from 0.678 to 0.550. Age under 25 (majority class 0.550, COMPAS 0.656): p-rule 24.7 (16.4–30.8) rises to 79.1 (70.0–97.6) at `gamma` = 0.15 while accuracy falls from 0.636 to 0.590.
 
-| Method | Accuracy | P-rule | AUC |
-|---|---|---|---|
-| Always predict the more common outcome | 0.550 (0.532–0.571) | not defined | 0.500 |
-| COMPAS decile score ≥ 5 | 0.656 (0.644–0.669) | 91.1 (83.3–99.0) | 0.706 (0.696–0.720) |
-| Logistic regression, no fairness threshold | 0.678 (0.663–0.692) | 65.3 (59.1–73.3) | 0.726 (0.705–0.737) |
-| Logistic regression, `gamma` = 0.20 | 0.550 (0.515–0.576) | 94.8 (88.6–98.3) | |
-
-### Age group (each group is the protected group in turn, 7,214 defendants)
-
-| Group | P-rule without constraint | P-rule at `gamma` = 0.15 | Accuracy at `gamma` = 0.15 |
-|---|---|---|---|
-| Under 25 | 24.7 (16.4–30.8) | 79.1 (70.0–97.6) | 0.590 (0.497–0.618) |
-| 25 to 45 | 58.3 (52.0–66.0) | 79.0 (47.7–96.9) | 0.564 (0.540–0.591) |
-| Over 45 | 86.6 (75.9–99.8) | 96.8 (91.0–99.7) | 0.595 (0.510–0.632) |
-
-The unconstrained age model has accuracy 0.636 (0.622–0.656). Each group gets its own threshold, so each row is a different classifier.
-
-### Accuracy points lost to reach a p-rule of 80% (smallest `gamma` in steps of 0.01)
-
-| Protected attribute | Mean | Range |
-|---|---|---|
-| Race | 7.7 | 3.2 to 11.0 |
-| Age under 25 | 9.4 | 1.8 to 15.8 |
-| Age 25 to 45 | 3.4 | −0.1 to 7.0 |
-| Sex | 2.3 | 0.4 to 5.5 |
-| Age over 45 | −0.2 | −2.5 to 0.0 |
-
-### Does dropping the defendants without jail dates bias the results?
-
-235 of the 6,150 African-American and Caucasian defendants have no jail dates and are dropped from the race and feature-selection analyses (the paper also drops records with missing information). The missing share is slightly higher for African-American defendants (159 of 3,696, 4.3%) than for Caucasian defendants (76 of 2,454, 3.1%; p = 0.016), and the defendants without dates re-offend much less often (17.4% against 47.8%), so the missing dates are not random. Dropping them moves the African-American share of the data from 60.1% to 59.8%. To check whether this matters, the race experiment was repeated over 20 splits under three treatments (mean and range; test rows differ between treatments):
-
-| Treatment of the 235 defendants | Rows | Accuracy | P-rule | P-rule at `gamma` = 0.15 |
-|---|---|---|---|---|
-| Drop them (used everywhere above) | 5,915 | 0.662 (0.650–0.679) | 60.1 (55.6–63.7) | 85.1 (82.6–90.2) |
-| Keep them, add a "stay unknown" flag | 6,150 | 0.664 (0.651–0.679) | 60.9 (56.6–65.5) | 84.9 (79.2–88.4) |
-| Keep them, do not use the stay feature | 6,150 | 0.654 (0.636–0.670) | 55.8 (52.0–60.6) | 81.9 (77.2–87.6) |
-
-Dropping and flagging give the same picture within the split-to-split range. Not using the stay feature at all costs about 0.8 accuracy points and lowers the p-rule by about 4 points, so the feature carries real information.
-
-### Feature analysis (race is the protected attribute, 5,915 defendants)
-
-Marginal accuracy and discrimination coefficients (Shapley values) on the 4,225 training rows of the seed-42 split:
-
-| Feature | Accuracy coefficient | Discrimination coefficient |
-|---|---|---|
-| `priors_count` | 0.0427 | 9.8e-6 |
-| `age_cat` | 0.0217 | 1.2e-5 |
-| `length_of_stay` | 0.0114 | 4.0e-6 |
-| `sex` | 0.0086 | 2.9e-6 |
-| `c_charge_degree` | 0.0052 | 3.1e-6 |
-
-Effect of removing one feature from the classifier, test rows, 20 splits:
-
-| Feature removed | Accuracy | Accuracy gap between races | Splits with a smaller gap than with all features |
-|---|---|---|---|
-| none | 0.663 | 0.0243 | not applicable |
-| `race` | 0.661 | 0.0257 | 30% |
-| `sex` | 0.660 | 0.0247 | 45% |
-| `c_charge_degree` | 0.662 | 0.0270 | 40% |
-| `length_of_stay` | 0.655 | 0.0305 | 40% |
-| `age_cat` | 0.637 | 0.0297 | 50% |
-| `priors_count` | 0.603 | 0.0303 | 55% |
-
-The accuracy gap varies from split to split with a standard deviation of about 0.02, so differences of a few thousandths are not distinguishable from noise.
+Feature analysis (race protected, seed 42): `priors_count` has the largest accuracy and discrimination coefficients (0.043 and 9.8e-6), then `age_cat` (0.022 and 1.2e-5); the other three features are below 0.012 and 4.1e-6.
 
 ![Accuracy and p-rule versus gamma](figures/accuracy_prule_vs_gamma.png)
 
 ## Glossary
 
-**Columns of the raw data that are used** (`data/compas-scores-two-years.csv`, 7,214 rows, one per defendant):
-
-| Column | Meaning |
-|---|---|
-| `id` | Defendant identifier, used only to check that splits do not overlap |
-| `sex` | Male or Female |
-| `age` | Age in years as recorded in the file |
-| `age_cat` | Age group: Less than 25, 25 - 45, Greater than 45 (age 45 is in the last group) |
-| `race` | Race as recorded; only African-American and Caucasian are analyzed in the race experiments |
-| `priors_count` | Number of prior offenses |
-| `c_charge_degree` | Degree of the current charge: F (felony) or M (misdemeanor) |
-| `c_jail_in`, `c_jail_out` | Dates the person entered and left jail for the current charge |
-| `decile_score` | The COMPAS risk score from 1 (lowest) to 10 (highest) |
-| `two_year_recid` | 1 if the person re-offended within two years according to the dataset, otherwise 0 |
-
-**Variables derived in the code:**
-
-| Variable | Meaning |
-|---|---|
-| `length_of_stay` | Jail stay for the current charge: 0 = up to 7 days, 1 = 8 to 90 days, 2 = more than 90 days |
-| `priors_count` after binning | 0 = none, 1 = one to three, 2 = more than three |
-| `race` after encoding | 0 = African-American, 1 = Caucasian |
-| `sex` after encoding | 0 = Female, 1 = Male |
-| `age_cat` after encoding | 0 = under 25, 1 = 25 to 45, 2 = over 45 |
-
-**Terms:**
+Columns used from `data/compas-scores-two-years.csv`: `sex`, `age`, `age_cat` (under 25, 25 to 45, over 45), `race`, `priors_count` (prior offenses), `c_charge_degree` (F felony, M misdemeanor), `c_jail_in` and `c_jail_out` (jail dates), `decile_score` (COMPAS score, 1 to 10), `two_year_recid` (1 if the person re-offended within two years). Derived: `length_of_stay` (0 up to 7 days, 1 up to 90, 2 longer) and binned `priors_count` (0 none, 1 one to three, 2 more than three).
 
 | Term | Meaning |
 |---|---|
-| Protected attribute | A characteristic, here race, sex or age, that should not lead to unfair treatment |
-| Decision threshold | The predicted probability above which a person is flagged as likely to re-offend |
-| `gamma` | The share of accuracy the analyst accepts to lose in exchange for fairness (0.10 means up to 10%) |
-| P-rule | Ratio of the rates at which two groups are flagged, smaller over larger, in percent; 100% is parity and 80% is a common target |
-| Accuracy gap between races | Absolute difference between the accuracy for Caucasian and for African-American defendants (accuracy parity; this is not calibration in the usual sense) |
-| Out-of-fold prediction | A prediction for a training row made by a model that did not see that row (5-fold cross-validation); used to choose the threshold without touching test rows |
-| Mutual information | How much knowing one variable reduces uncertainty about another, measured in nats |
-| Accuracy coefficient | How much a feature subset adds to predicting the outcome beyond the other features and the protected attribute |
-| Discrimination coefficient | How much a feature subset carries information about the protected attribute that is also about the outcome |
-| Shapley value | A fair split of a joint contribution among features, averaging over all orders in which features could be added |
+| P-rule | Smaller over larger of two groups' flag rates, in percent; 100% is parity, 80% a common target |
+| `gamma` | Share of accuracy the analyst accepts to lose for fairness |
+| AUC | Chance that a random person who re-offended scores higher than one who did not; 0.5 is guessing |
+| Accuracy gap | Absolute difference in accuracy between Caucasian and African-American defendants |
+| Accuracy / discrimination coefficient | What a feature adds to predicting the outcome / how much of that information is shared with race (Shapley values) |
 
 ## Limitations
 
-- **Two racial groups only.** The race analysis covers African-American and Caucasian defendants and says nothing about the other groups in the raw data.
-- **Resampling is not independent sampling.** The 20 splits reuse the same defendants, so ranges understate the uncertainty about new defendants. No confidence intervals are computed.
-- **One model family and two fairness measures.** Only logistic regression is evaluated. Fairness is measured with the p-rule and an accuracy gap; equalized odds, calibration and other definitions are not evaluated and can rank the same interventions differently.
-- **One place and time.** Broward County, Florida, around 2013 to 2014. The results should not be assumed to carry over elsewhere.
-- **Descriptive, not causal.** The analysis shows which features carry which information, not what causes the disparity. Prior-offense counts may themselves reflect policing intensity.
-- **Models do not use the protected attribute as an input** in Part 1, yet still show disparities, because other features act as proxies.
-- **Rows dropped.** 235 of the 6,150 African-American and Caucasian defendants have no jail dates and are removed from the race and feature-selection analyses; the sex and age experiments use all 7,214 rows and do not use stay length. Their missingness is related to race and to the outcome (see the sensitivity table above); it did not change the race results beyond the split-to-split range, but the reason these dates are missing (for example, never booked into jail) was not verified. Stay length, and whether it is missing, may only be known after the COMPAS screening (45% of jail-out dates are later than the screening date), so using it as a predictor may not match what was known at scoring time.
-- **Data quirks.** The `age` column does not match "screening date minus birth date" for most rows, most likely because it is age at the time of data collection (this reason was not verified). Two columns appear twice in the raw file (`priors_count`, `decile_score`) with identical values. The raw file contains defendants' names and birth dates (public record); the code never uses them.
-- **Unverified.**
-  - The raw data file was not compared with the original ProPublica release; row, column and group counts were only checked against memory of that release.
-  - The paper's COMPAS table could not be reproduced exactly: it uses 5,334 rows with a filtering it does not describe, and its discrimination coefficients are about half the size of ours, although the ordering of the features is the same except that sex and charge degree swap places.
-  - The optimizer behind the shared information is checked against textbook known answers (for example the AND gate) and a brute-force grid search, but not against an independent implementation of the decomposition.
-  - Information estimated from counts is biased upward when groups are small; a permutation null is shown for one case but not applied everywhere.
-  - Only the library versions listed below were tested.
+- Two racial groups, one county and period (2013–2014), logistic regression only, and only the p-rule and an accuracy gap as fairness measures.
+- Descriptive, not causal. The 20 splits reuse the same defendants, so there are no confidence intervals.
+- 235 defendants without jail dates are dropped. They are missing more often for African-American defendants (4.3% against 3.1%) and re-offend far less (17.4% against 47.8%); keeping them with a flag gives a race p-rule of 60.9 instead of 60.1. Why the dates are missing, and whether stay length is known at scoring time, is unverified.
+- `age` often differs from screening date minus birth date (unverified why). The raw file holds names and birth dates (public record), which the code never uses.
+- Unverified: the CSV was not compared with ProPublica's release; the paper's COMPAS table (5,334 rows, undescribed filter) was not reproduced; the shared-information optimizer matches known answers and a brute-force search but not an independent implementation; count-based information estimates are biased upward for small groups.
+- Only the versions below were tested.
 
 ## Reproduce
 
-Tested with **Python 3.14.7 and 3.12.12** on an Apple-silicon Mac (macOS), with the exact library versions pinned in `requirements.txt` (numpy 2.5.5, pandas 3.1.1, scikit-learn 1.9.1, scipy 1.18.1, matplotlib 3.11.2, jupyter 1.1.1, nbconvert 7.17.2, ipykernel 7.4.0, pytest 9.2.0). Other versions were not tested.
-
-Run these from the repository root:
+Tested on Python 3.14.7 and 3.12.12 with the exact versions pinned in `requirements.txt`. From the repository root:
 
 ```bash
 python3 -m venv venv
@@ -175,42 +66,14 @@ pytest
 jupyter nbconvert --to notebook --execute --inplace notebooks/fairness_diagnostics.ipynb
 ```
 
-Measured on a fresh clone with an empty pip cache: installing the dependencies 75 to 79 seconds (depends on the network), the 80 tests about 29 seconds, and executing the notebook 114 to 125 seconds, roughly four minutes in total. The executed notebook reproduces the committed outputs and figure exactly, and Python 3.14.7 and 3.12.12 give identical numbers. The last command rewrites the notebook file in place; `git checkout notebooks/fairness_diagnostics.ipynb` restores the committed version.
+About four minutes on a fresh clone (install 75–79 s, tests 29 s, notebook 114–125 s). The notebook rewrites itself in place with identical results.
 
 ## Repository structure
 
 ```
-.
-├── data/
-│   ├── README.md
-│   └── compas-scores-two-years.csv     ProPublica COMPAS data, read-only input
-├── figures/
-│   ├── README.md
-│   └── accuracy_prule_vs_gamma.png     generated by the notebook
-├── notebooks/
-│   └── fairness_diagnostics.ipynb      walkthrough that calls the package
-├── src/compas_fairness/
-│   ├── __init__.py
-│   ├── baselines.py                    majority-class and COMPAS baselines
-│   ├── config.py                       seed, target column, paths
-│   ├── data.py                         loading the raw file
-│   ├── feature_selection.py            feature analysis, Shapley scores, feature removal
-│   ├── information.py                  mutual information, coefficients, Shapley values
-│   ├── metrics.py                      p-rule and group accuracy gap
-│   ├── missingness.py                  missing jail dates by race and by outcome
-│   ├── partial_information.py          shared and unique information (optimization)
-│   ├── plots.py                        the gamma sweep figure
-│   ├── preprocessing.py                encoding, binning, dropping rows without dates
-│   ├── seed_study.py                   results over 20 splits, cost to reach a p-rule
-│   ├── threshold_experiments.py        race, sex and age threshold experiments
-│   └── thresholds.py                   threshold search
-├── tests/                              known-answer tests
-├── LICENSE
-├── pyproject.toml
-├── requirements.txt
-└── README.md
+data/          compas-scores-two-years.csv (read-only input)
+figures/       accuracy_prule_vs_gamma.png (generated)
+notebooks/     fairness_diagnostics.ipynb
+src/compas_fairness/   preprocessing, metrics, thresholds, information, seed study, baselines, plots
+tests/         known-answer tests
 ```
-
-## Data source
-
-`data/compas-scores-two-years.csv` is the public COMPAS recidivism dataset released by ProPublica for their 2016 ["Machine Bias"](https://www.propublica.org/article/machine-bias-risk-assessments-in-criminal-sentencing) investigation. The threshold method is adapted from [Zafar et al., *Fairness Constraints*](https://github.com/mbilalzafar/fair-classification/tree/master/disparate_impact), and the feature analysis follows [Information Theoretic Measures for Fairness-aware Feature Selection](https://arxiv.org/abs/2106.00772).
